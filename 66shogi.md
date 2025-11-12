@@ -13,6 +13,7 @@
 2. **Piece Choice Groups**
    - Introduced `PieceChoiceGroup` arrays in `Variant` and parser support for `pieceChoiceGroup*` keys. Each group defines a piece set, a maximum count, and whether it applies only during setup.
    - During setup, move generation consults the relevant group to ensure that, for example, dropping a rook consumes the shared quota and prevents a subsequent bishop drop (and vice versa).
+   - Added a `lockUnused` flag so that once the shared quota is fulfilled, any option that was never used stays illegal even after captures, preventing the "unused" major piece from resurging later in the game.
 
 3. **Automatic Cleanup After Setup**
    - Once all required drops are performed, any leftover pocket pieces belonging to fulfilled choice groups are removed so later captures don’t resurrect the unused option.
@@ -47,6 +48,7 @@ The engine can now run 66shogi end-to-end: players alternate forced drops on the
 2. **ピース選択グループ**
    - `Variant` に `PieceChoiceGroup` 配列を設け、`pieceChoiceGroup*` キーをパーサで解釈。各グループは対象駒集合・上限数・セットアップ限定かどうかを持つ。
    - セットアップ中の指し手生成では該当グループを参照し、例えば飛車を置いたら共有枠を消費して角のドロップを禁止する。
+   - `lockUnused` フラグを追加し、共有枠を満たした時点で一度も使っていない選択肢は終局までドロップ不可になるようにし、セットアップで捨てた大駒が後の持ち駒ドロップで復活しないようにした。
 
 3. **セットアップ完了後の自動クリーンアップ**
    - 必要なドロップを終えた時点で、満たされた選択グループに属する残りのポケット駒を除去し、後続の捕獲で未使用駒が復活しないようにした。
