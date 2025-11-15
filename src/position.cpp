@@ -120,6 +120,20 @@ std::ostream& operator<<(std::ostream& os, const Position& pos) {
          << "\nTablebases DTZ: " << std::setw(4) << dtz << " (" << s2 << ")";
   }
 
+  if (pos.variant()->setupDrops)
+  {
+      auto pending = [&](Color c) {
+          int total = 0;
+          for (PieceType pt = PAWN; pt < PIECE_TYPE_NB; ++pt)
+              total += pos.state()->setupPocketRemaining[c][pt];
+          return total;
+      };
+      os << "\nSetupDropsActive: W=" << pos.state()->setupDropsActive[WHITE]
+         << " (" << pending(WHITE) << " pending)"
+         << " B=" << pos.state()->setupDropsActive[BLACK]
+         << " (" << pending(BLACK) << " pending)";
+  }
+
   return os;
 }
 
@@ -537,9 +551,24 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
   chess960 = isChess960 || v->chess960;
   tsumeMode = Options["TsumeMode"];
   thisThread = th;
-  if (var->setupDrops)
+  if (var->setupDrops) {
       for (Color c : {WHITE, BLACK})
-          st->setupDropsActive[c] = setup_drop_pending(c);
+          for (PieceType pt = PAWN; pt < PIECE_TYPE_NB; ++pt)
+              st->setupPocketRemaining[c][pt] = 0;
+
+      if (gamePly == 0) {
+          for (Color c : {WHITE, BLACK})
+              for (PieceSet ps = var->setupDropPieceTypes[c]; ps;) {
+                  PieceType pt = pop_lsb(ps);
+                  st->setupPocketRemaining[c][pt] = count_in_hand(c, pt);
+              }
+          for (Color c : {WHITE, BLACK})
+              st->setupDropsActive[c] = setup_drop_pending(c);
+      } else {
+          for (Color c : {WHITE, BLACK})
+              st->setupDropsActive[c] = false;
+      }
+  }
   set_state(st);
 
   assert(pos_is_ok());
@@ -554,21 +583,17 @@ bool Position::setup_drop_pending(Color c) const {
   for (PieceSet ps = var->setupDropPieceTypes[c]; ps;)
   {
       PieceType pt = pop_lsb(ps);
-      if (count_in_hand(c, pt) > 0)
+      if (st->setupPocketRemaining[c][pt] > 0)
           return true;
   }
 
   for (int i = 0; i < var->pieceChoiceGroupCount[c]; ++i)
   {
       const PieceChoiceGroup& group = var->pieceChoiceGroups[c][i];
-      if (!group.requiredForSetup || st->choiceGroupUsage[c][i] >= group.limit)
+      if (!group.requiredForSetup)
           continue;
-      for (PieceSet options = group.options; options;)
-      {
-          PieceType pt = pop_lsb(options);
-          if (count_in_hand(c, pt) > 0)
-              return true;
-      }
+      if (group.limit > 0 && st->choiceGroupUsage[c][i] < group.limit)
+          return true;
   }
 
   return false;
@@ -1864,6 +1889,8 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       }
 
       PieceType dropType = in_hand_piece_type(m);
+      if (st->setupPocketRemaining[us][dropType] > 0)
+          --st->setupPocketRemaining[us][dropType];
       drop_piece(make_piece(us, dropType), pc, to);
       st->materialKey ^= Zobrist::psq[pc][pieceCount[pc]-1];
       if (type_of(pc) != PAWN)

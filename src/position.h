@@ -57,6 +57,7 @@ struct StateInfo {
   Bitboard wallSquares;
   Bitboard gatesBB[COLOR_NB];
   bool setupDropsActive[COLOR_NB];
+  int setupPocketRemaining[COLOR_NB][PIECE_TYPE_NB];
   int choiceGroupUsage[COLOR_NB][PieceChoiceGroupMax];
   PieceSet choiceGroupUsedTypes[COLOR_NB][PieceChoiceGroupMax];
 
